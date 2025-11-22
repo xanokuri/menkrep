@@ -131,8 +131,9 @@ function createBot() {
       // baseDelay: 30 detik (30000 ms) kalau config kosong, atau pakai yang di settings.json kalau ada
       const baseDelay = utils['auto-recconect-delay'] || 30000;
 
-      // Kalau keluar karena ada player lain → tambah 3 menit (180000 ms)
-      const extraDelay = leftBecausePlayers ? 180000 : 0; // 3 menit
+      // Kalau keluar karena ada player lain → tambah 90 detik (90000 ms)
+      // Total: 30000 + 90000 = 120000 ms (2 menit)
+      const extraDelay = leftBecausePlayers ? 90000 : 0; // 1.5 menit
       const delay = baseDelay + extraDelay;
 
       console.log(`[AfkBot] Reconnecting in ${delay} ms...`);
