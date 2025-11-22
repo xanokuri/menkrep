@@ -1,12 +1,11 @@
 const mineflayer = require('mineflayer');
 const { pathfinder, Movements, goals: { GoalBlock } } = require('mineflayer-pathfinder');
-
 const config = require('./settings.json');
 
 const express = require('express');
 const app = express();
 
-// Endpoint simple buat dicek Render / cron-job.org
+// Endpoint simple untuk Render / cron-job.org
 app.get('/', (req, res) => {
   res.send('Bot is running');
 });
@@ -18,6 +17,8 @@ app.listen(PORT, () => {
 });
 
 function createBot() {
+  let leftBecausePlayers = false; // flag: bot keluar karena ada player lain
+
   const bot = mineflayer.createBot({
     host: config.server.ip,
     port: config.server.port,
@@ -36,10 +37,24 @@ function createBot() {
   const utils = config.utils || {};
   const position = config.position || {};
 
+  function leaveForPlayers(reason) {
+    if (leftBecausePlayers) return; // biar gak dipanggil berulang
+    leftBecausePlayers = true;
+    console.log(`[Auto-Leave] ${reason} Leaving server and will try again later...`);
+    bot.quit('Player joined');
+  }
+
   bot.once('spawn', () => {
     console.log(`[AfkBot] Bot successfully connected to ${config.server.ip}:${config.server.port}`);
 
-    // Gerak ke koordinat AFK kalau di-enable
+    // ❗ Cek kondisi awal: kalau pas bot connect sudah ada player lain → langsung keluar
+    const others = Object.values(bot.players).filter(p => p.username !== bot.username);
+    if (others.length > 0) {
+      leaveForPlayers(`Detected ${others.length} other player(s) already online.`);
+      return;
+    }
+
+    // Gerak ke koordinat AFK (kalau di-enable)
     if (position.enabled) {
       const goal = new GoalBlock(position.x, position.y, position.z);
       bot.pathfinder.setGoal(goal);
@@ -53,7 +68,7 @@ function createBot() {
       });
     }
 
-    // Auto /register + /login (kalau server pakai AuthMe dsb)
+    // Auto-auth sederhana (/register + /login)
     if (utils['auto-auth'] && utils['auto-auth'].enabled) {
       const password = utils['auto-auth'].password;
       if (password && password.length > 0) {
@@ -82,7 +97,7 @@ function createBot() {
       }
     }
 
-    // Anti-AFK simple: lompat + sneak terus
+    // Anti-AFK: lompat + sneak
     if (utils['anti-afk'] && utils['anti-afk'].enabled) {
       bot.setControlState('jump', true);
       if (utils['anti-afk'].sneak) {
@@ -90,6 +105,15 @@ function createBot() {
       }
       console.log('[Anti-AFK] Enabled jump/sneak anti-AFK.');
     }
+  });
+
+  // ❗ Auto-leave saat ada player lain join
+  bot.on('playerJoined', (player) => {
+    if (!player || !player.username) return;
+    if (player.username === bot.username) return; // jangan trigger kalau itu bot sendiri
+
+    // Di sini artinya ada "pemain asli" / player lain masuk
+    leaveForPlayers(`Player ${player.username} joined.`);
   });
 
   bot.on('goal_reached', () => {
@@ -102,8 +126,14 @@ function createBot() {
 
   bot.on('end', () => {
     console.log('[AfkBot] Bot disconnected from server.');
+
     if (utils['auto-reconnect']) {
-      const delay = utils['auto-recconect-delay'] || 5000;
+      const baseDelay = utils['auto-recconect-delay'] || 5000;
+
+      // Kalau keluar karena ada player lain, kasih delay lebih lama
+      const extraDelay = leftBecausePlayers ? 60000 : 0; // 60 detik
+      const delay = baseDelay + extraDelay;
+
       console.log(`[AfkBot] Reconnecting in ${delay} ms...`);
       setTimeout(createBot, delay);
     }
