@@ -1,14 +1,14 @@
 {
-  "server": {
-    "ip": "xanokuri.aternos.me",
-    "port": 32216,
-    "version": "1.21"
-  },
-
   "bot-account": {
     "username": "AFKBot",
     "password": "",
-    "type": "offline"
+    "type": "mojang"
+  },
+
+  "server": {
+    "ip": "xanokuri.aternos.me",
+    "port": 32216,
+    "version": "1.12.1"
   },
 
   "position": {
@@ -19,6 +19,11 @@
   },
 
   "utils": {
+    "auto-auth": {
+      "enabled": false,
+      "password": ""
+    },
+
     "anti-afk": {
       "enabled": true,
       "sneak": true,
@@ -32,24 +37,18 @@
       "repeat-delay": 60,
       "messages": [
         "I'm a regular player",
-        "Subscribe To Slobos!",
+        "Subscibe To Slobos!",
         "I Like to Play Minecraft!"
       ]
     },
 
     "chat-log": true,
-
-    "auto-auth": {
-      "enabled": false,
-      "password": ""
-    },
-
     "auto-reconnect": true,
     "auto-recconect-delay": 30000,
 
     "discord-webhook": {
       "enabled": true,
-      "url": "https://discord.com/api/webhooks/1443181906593185815/CVT4K6V7fIQH9P7EGLLUtFpZ-h9yBHTZN1L1s17F0E26x-0ZcKjAI_uFVuR7RD0jsmjP"
+      "url": "PASTE_WEBHOOK_URL_DISCORD_DI_SINI"
     },
 
     "cron-monitor": {
