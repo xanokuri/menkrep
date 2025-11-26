@@ -148,22 +148,29 @@ function createBot() {
   });
 }
 
-// Anti-AFK Mode 4: lompat + gerak kecil berkala
+// Anti-AFK Mode 4: lompat + gerak kecil berkala + LOG
 function startMoveAndJump(bot, afkConfig) {
-  // interval dasar 3 detik, kalau mau bisa dibikin dari config (misal afkConfig.intervalMs)
+  // interval dasar 3 detik, bisa diatur via settings.json -> utils.anti-afk.intervalMs
   const interval = afkConfig.intervalMs || 3000;
 
   setInterval(() => {
+    const pos = bot.entity.position;
+    console.log(
+      `[Anti-AFK] Tick at x=${pos.x.toFixed(1)}, y=${pos.y.toFixed(1)}, z=${pos.z.toFixed(1)}`
+    );
+
     // Lompat sebentar
+    console.log('[Anti-AFK] Jump');
     bot.setControlState('jump', true);
-    setTimeout(() => bot.setControlState('jump', false), 500);
+    setTimeout(() => bot.setControlState('jump', false), 400);
 
     // Pilih arah random: kiri/kanan/maju/mundur
     const dirs = ['left', 'right', 'forward', 'back'];
     const dir = dirs[Math.floor(Math.random() * dirs.length)];
 
+    console.log(`[Anti-AFK] Move: ${dir}`);
     bot.setControlState(dir, true);
-    setTimeout(() => bot.setControlState(dir, false), 800);
+    setTimeout(() => bot.setControlState(dir, false), 600);
   }, interval);
 }
 
