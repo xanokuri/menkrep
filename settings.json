@@ -48,7 +48,7 @@
 
     "discord-webhook": {
       "enabled": true,
-      "url": "PASTE_WEBHOOK_URL_DISCORD_DI_SINI"
+      "url": "https://discord.com/api/webhooks/1443181906593185815/CVT4K6V7fIQH9P7EGLLUtFpZ-h9yBHTZN1L1s17F0E26x-0ZcKjAI_uFVuR7RD0jsmjP"
     },
 
     "cron-monitor": {
