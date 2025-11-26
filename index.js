@@ -5,8 +5,17 @@ const config = require('./settings.json');
 const express = require('express');
 const app = express();
 
+// ================== GLOBAL UTILS / CONFIG ==================
+const utils = config.utils || {};
+const cronMonitor = utils['cron-monitor'] || {};
+
+// ============= CRON PING MONITOR =============
+let lastPingTime = Date.now();      // kapan terakhir ada request ke HTTP server
+let lastCronAlertTime = 0;          // kapan terakhir ngirim warning soal cron
+
 // Endpoint simple untuk Render / cron-job.org
 app.get('/', (req, res) => {
+  lastPingTime = Date.now(); // tiap kali ada ping, update waktu
   res.set('Content-Type', 'text/plain');
   res.send('OK');
 });
@@ -15,7 +24,26 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`HTTP server listening on port ${PORT}`);
+  sendDiscord('✅ HTTP server started on Render.');
 });
+
+// Kalau cron-monitor diaktifkan di settings.json, cek berkala
+if (cronMonitor.enabled) {
+  const checkEveryMs = (cronMonitor.checkEveryMinutes || 5) * 60 * 1000;   // default cek tiap 5 menit
+  const maxGapMs = (cronMonitor.maxGapMinutes || 15) * 60 * 1000;          // default kalau >15 menit tanpa ping = warning
+
+  setInterval(() => {
+    const now = Date.now();
+    const gap = now - lastPingTime;
+
+    if (gap > maxGapMs && now - lastCronAlertTime > maxGapMs) {
+      const gapMinutes = Math.round(gap / 60000);
+      console.log(`[CronMonitor] No HTTP ping for ~${gapMinutes} minutes. Possible cron stop.`);
+      sendDiscord(`⚠️ Cron ping warning: tidak ada HTTP ping ke Render selama ~${gapMinutes} menit. Cek cron-job.org ya.`);
+      lastCronAlertTime = now;
+    }
+  }, checkEveryMs);
+}
 
 function createBot() {
   let leftBecausePlayers = false; // flag: bot keluar karena ada player lain
@@ -35,18 +63,21 @@ function createBot() {
   const defaultMovements = new Movements(bot, mcData);
   bot.pathfinder.setMovements(defaultMovements);
 
-  const utils = config.utils || {};
   const position = config.position || {};
 
   function leaveForPlayers(reason) {
     if (leftBecausePlayers) return; // biar gak dipanggil berulang
     leftBecausePlayers = true;
-    console.log(`[Auto-Leave] ${reason} Leaving server and will try again later...`);
+    const msg = `[Auto-Leave] ${reason} Leaving server and will try again later...`;
+    console.log(msg);
+    sendDiscord(`👋 Bot leave: ${reason}`);
     bot.quit('Player joined');
   }
 
   bot.once('spawn', () => {
-    console.log(`[AfkBot] Bot successfully connected to ${config.server.ip}:${config.server.port}`);
+    const msg = `[AfkBot] Bot successfully connected to ${config.server.ip}:${config.server.port}`;
+    console.log(msg);
+    sendDiscord(`✅ Bot connected to ${config.server.ip}:${config.server.port}`);
 
     // ❗ Cek kondisi awal: kalau pas bot connect sudah ada player lain → langsung keluar
     const others = Object.values(bot.players).filter(p => p.username !== bot.username);
@@ -135,32 +166,48 @@ function createBot() {
       const delay = baseDelay + extraDelay;
 
       console.log(`[AfkBot] Reconnecting in ${delay} ms...`);
+      sendDiscord(`🔁 Bot disconnected, will reconnect in ${Math.round(delay / 1000)} seconds.`);
       setTimeout(createBot, delay);
+    } else {
+      sendDiscord('⛔ Bot disconnected and auto-reconnect is disabled.');
     }
   });
 
   bot.on('kicked', (reason) => {
     console.log(`[AfkBot] Bot was kicked from the server. Reason:\n${reason}`);
+    sendDiscord(`⚠️ Bot was kicked from server. Reason:\n\`\`\`\n${reason}\n\`\`\``);
   });
 
   bot.on('error', (err) => {
     console.log(`[ERROR] ${err.message}`);
+    sendDiscord(`❌ Bot error: \`${err.message}\``);
   });
 }
 
-// Anti-AFK Mode 4: lompat + gerak kecil berkala + LOG
+// Anti-AFK Mode 4: lompat + gerak kecil berkala + LOG tiap ~30 detik
 function startMoveAndJump(bot, afkConfig) {
-  // interval dasar 3 detik, bisa diatur via settings.json -> utils.anti-afk.intervalMs
-  const interval = afkConfig.intervalMs || 3000;
+  // Gerak tiap 3 detik (bisa diatur via settings.json -> utils.anti-afk.intervalMs)
+  const moveInterval = afkConfig.intervalMs || 3000;
+  // Log tiap 30 detik (bisa diatur via settings.json -> utils.anti-afk.logIntervalMs)
+  const logInterval = afkConfig.logIntervalMs || 30000;
+
+  let lastLog = Date.now();
 
   setInterval(() => {
+    const now = Date.now();
+    const shouldLog = now - lastLog >= logInterval;
+
     const pos = bot.entity.position;
-    console.log(
-      `[Anti-AFK] Tick at x=${pos.x.toFixed(1)}, y=${pos.y.toFixed(1)}, z=${pos.z.toFixed(1)}`
-    );
+
+    if (shouldLog) {
+      console.log(
+        `[Anti-AFK] (30s) Tick: x=${pos.x.toFixed(1)}, y=${pos.y.toFixed(1)}, z=${pos.z.toFixed(1)}`
+      );
+      lastLog = now;
+    }
 
     // Lompat sebentar
-    console.log('[Anti-AFK] Jump');
+    if (shouldLog) console.log('[Anti-AFK] (30s) Jump');
     bot.setControlState('jump', true);
     setTimeout(() => bot.setControlState('jump', false), 400);
 
@@ -168,10 +215,10 @@ function startMoveAndJump(bot, afkConfig) {
     const dirs = ['left', 'right', 'forward', 'back'];
     const dir = dirs[Math.floor(Math.random() * dirs.length)];
 
-    console.log(`[Anti-AFK] Move: ${dir}`);
+    if (shouldLog) console.log(`[Anti-AFK] (30s) Move: ${dir}`);
     bot.setControlState(dir, true);
     setTimeout(() => bot.setControlState(dir, false), 600);
-  }, interval);
+  }, moveInterval);
 }
 
 // Auto-auth sederhana: kirim /register lalu /login
@@ -182,6 +229,22 @@ function tryAutoAuth(bot, password) {
     bot.chat(`/login ${password}`);
     console.log('[Auth] Sent /login command.');
   }, 3000);
+}
+
+// ============= DISCORD WEBHOOK HELPER =============
+async function sendDiscord(message) {
+  const discordCfg = utils['discord-webhook'] || {};
+  if (!discordCfg.enabled || !discordCfg.url) return;
+
+  try {
+    await fetch(discordCfg.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: message })
+    });
+  } catch (err) {
+    console.log(`[Discord] Failed to send webhook: ${err.message}`);
+  }
 }
 
 createBot();
