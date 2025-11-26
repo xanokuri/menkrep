@@ -2,12 +2,13 @@
   "server": {
     "ip": "xanokuri.aternos.me",
     "port": 32216,
+    "version": "1.21"
   },
 
   "bot-account": {
     "username": "AFKBot",
     "password": "",
-    "type": "offline" 
+    "type": "offline"
   },
 
   "position": {
