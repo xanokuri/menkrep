@@ -7,7 +7,8 @@ const app = express();
 
 // Endpoint simple untuk Render / cron-job.org
 app.get('/', (req, res) => {
-  res.send('Bot is running');
+  res.set('Content-Type', 'text/plain');
+  res.send('OK');
 });
 
 // PENTING: pakai PORT dari environment Render
@@ -97,13 +98,10 @@ function createBot() {
       }
     }
 
-    // Anti-AFK: lompat + sneak
+    // Anti-AFK Mode 4: gerak + lompat kecil berkala
     if (utils['anti-afk'] && utils['anti-afk'].enabled) {
-      bot.setControlState('jump', true);
-      if (utils['anti-afk'].sneak) {
-        bot.setControlState('sneak', true);
-      }
-      console.log('[Anti-AFK] Enabled jump/sneak anti-AFK.');
+      startMoveAndJump(bot, utils['anti-afk']);
+      console.log('[Anti-AFK] Move+Jump anti-AFK enabled.');
     }
   });
 
@@ -148,6 +146,25 @@ function createBot() {
   bot.on('error', (err) => {
     console.log(`[ERROR] ${err.message}`);
   });
+}
+
+// Anti-AFK Mode 4: lompat + gerak kecil berkala
+function startMoveAndJump(bot, afkConfig) {
+  // interval dasar 3 detik, kalau mau bisa dibikin dari config (misal afkConfig.intervalMs)
+  const interval = afkConfig.intervalMs || 3000;
+
+  setInterval(() => {
+    // Lompat sebentar
+    bot.setControlState('jump', true);
+    setTimeout(() => bot.setControlState('jump', false), 500);
+
+    // Pilih arah random: kiri/kanan/maju/mundur
+    const dirs = ['left', 'right', 'forward', 'back'];
+    const dir = dirs[Math.floor(Math.random() * dirs.length)];
+
+    bot.setControlState(dir, true);
+    setTimeout(() => bot.setControlState(dir, false), 800);
+  }, interval);
 }
 
 // Auto-auth sederhana: kirim /register lalu /login
